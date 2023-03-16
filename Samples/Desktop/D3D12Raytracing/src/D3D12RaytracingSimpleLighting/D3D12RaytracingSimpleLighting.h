@@ -68,6 +68,11 @@ private:
     ComPtr<ID3D12GraphicsCommandList5> m_dxrCommandList;
     ComPtr<ID3D12StateObject> m_dxrStateObject;
 
+    //
+    void CreateInlineRaytracingPSO();
+    ComPtr<ID3D10Blob> m_inlineDXRShader;
+    ComPtr<ID3D12PipelineState> m_inlineDxrPso;
+
     // Root signatures
     ComPtr<ID3D12RootSignature> m_raytracingGlobalRootSignature;
     ComPtr<ID3D12RootSignature> m_raytracingLocalRootSignature;

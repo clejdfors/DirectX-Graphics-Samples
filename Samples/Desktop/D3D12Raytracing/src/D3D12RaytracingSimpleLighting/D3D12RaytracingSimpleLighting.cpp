@@ -13,6 +13,7 @@
 #include "D3D12RaytracingSimpleLighting.h"
 #include "DirectXRaytracingHelper.h"
 #include "CompiledShaders\Raytracing.hlsl.h"
+#include "CompiledShaders\InlineRaytracing.hlsl.h"
 
 using namespace std;
 using namespace DX;
@@ -164,6 +165,9 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
 
     // Create a raytracing pipeline state object which defines the binding of shaders, state and resources to be used during raytracing.
     CreateRaytracingPipelineStateObject();
+
+    // 
+    CreateInlineRaytracingPSO();
 
     // Create a heap for descriptors.
     CreateDescriptorHeap();
@@ -324,6 +328,15 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
 
     // Create the state object.
     ThrowIfFailed(m_dxrDevice->CreateStateObject(raytracingPipeline, IID_PPV_ARGS(&m_dxrStateObject)), L"Couldn't create DirectX Raytracing state object.\n");
+}
+
+void D3D12RaytracingSimpleLighting::CreateInlineRaytracingPSO()
+{
+	D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+    desc.pRootSignature = m_raytracingGlobalRootSignature.Get();
+    desc.CS = CD3DX12_SHADER_BYTECODE((void*)g_pInlineRaytracing, ARRAYSIZE(g_pInlineRaytracing));
+
+    ThrowIfFailed(m_dxrDevice->CreateComputePipelineState(&desc, IID_PPV_ARGS(&m_inlineDxrPso)));
 }
 
 // Create 2D output texture for raytracing.
@@ -639,7 +652,7 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
 {
     auto commandList = m_deviceResources->GetCommandList();
     auto frameIndex = m_deviceResources->GetCurrentFrameIndex();
-    
+
     auto DispatchRays = [&](auto* commandList, auto* stateObject, auto* dispatchDesc)
     {
         // Since each shader table has only one shader record, the stride is same as the size.
@@ -672,12 +685,18 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
     memcpy(&m_mappedConstantData[frameIndex].constants, &m_sceneCB[frameIndex], sizeof(m_sceneCB[frameIndex]));
     auto cbGpuAddress = m_perFrameConstants->GetGPUVirtualAddress() + frameIndex * sizeof(m_mappedConstantData[0]);
     commandList->SetComputeRootConstantBufferView(GlobalRootSignatureParams::SceneConstantSlot, cbGpuAddress);
-   
+
     // Bind the heaps, acceleration structure and dispatch rays.
     D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
     SetCommonPipelineState(commandList);
     commandList->SetComputeRootShaderResourceView(GlobalRootSignatureParams::AccelerationStructureSlot, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
     DispatchRays(m_dxrCommandList.Get(), m_dxrStateObject.Get(), &dispatchDesc);
+
+    commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(m_raytracingOutput.Get()));
+
+    // 
+    commandList->SetPipelineState(m_inlineDxrPso.Get());
+    commandList->Dispatch(m_width/16, m_height/16, 1);
 }
 
 // Update the application state with the new resolution.

@@ -181,7 +181,7 @@ void Graphics::Initialize(bool RequireDXRSupport)
         {
             debugInterface->EnableDebugLayer();
 
-            uint32_t useGPUBasedValidation = 0;
+            uint32_t useGPUBasedValidation = 1;
             CommandLineArgs::GetInteger(L"gpu_debug", useGPUBasedValidation);
             if (useGPUBasedValidation)
             {
